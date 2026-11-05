@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Proxy Playground</title>
+    <style>
+        :root {
+            --bg: #111318;
+            --panel: #1a1d24;
+            --panel-2: #22262f;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --border: #343945;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-disabled: #1e3a5f;
+            --mono-bg: #14161c;
+            --error: #f87171;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;               /* no page scroll — landscape fixed layout */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            flex: 0 0 auto;
+            padding: 0.55rem 1rem;
+            display: flex;
+            align-items: baseline;
+            gap: 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel);
+        }
+        header h1 { font-size: 1.05rem; margin: 0; }
+        header span { color: var(--muted); font-size: 0.8rem; }
+
+        main {
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            min-height: 0;                    /* allow children to shrink & scroll inside */
+        }
+
+        /* ---------- left: controls ---------- */
+        #controls {
+            min-height: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+        }
+        .card h2 {
+            margin: 0 0 0.6rem 0;
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        label { display: block; margin: 0.5rem 0 0.25rem 0; font-weight: 500; font-size: 0.82rem; }
+        label:first-child { margin-top: 0; }
+
+        input[type="text"], input[type="password"], select, textarea {
+            width: 100%;
+            padding: 0.45rem 0.55rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            background: var(--panel-2);
+            color: var(--text);
+        }
+        input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+        #extraParams { min-height: 56px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; resize: vertical; }
+
+        .hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; }
+
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+
+        .slider-row { display: flex; align-items: center; gap: 0.5rem; }
+        .slider-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+        .slider-row output { min-width: 3.2ch; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+
+        .check-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; margin-top: 0.4rem; }
+        .check-row input { accent-color: var(--accent); }
+
+        .btn-row { display: flex; gap: 0.5rem; }
+        button {
+            flex: 1;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.6rem 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: var(--accent-hover); }
+        button:disabled { background-color: var(--accent-disabled); cursor: not-allowed; }
+        button.secondary { background-color: #3a4150; }
+        button.secondary:hover { background-color: #4b5568; }
+
+        /* ---------- right: text + output ---------- */
+        #work {
+            min-height: 0;
+            display: grid;
+            grid-template-rows: auto 1fr auto auto auto;
+            gap: 0.5rem;
+        }
+
+        #textInput {
+            height: 100%;
+            min-height: 0;
+            resize: none;
+            font-size: 1rem;
+            line-height: 1.5;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--mono-bg);
+        }
+
+        .work-label { font-size: 0.8rem; color: var(--muted); display: flex; justify-content: space-between; }
+
+        #status {
+            min-height: 1.4em;
+            font-size: 0.85rem;
+            color: var(--muted);
+            padding: 0.3rem 0.6rem;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #status.error { color: var(--error); }
+
+        #previewContainer {
+            display: none;
+            min-height: 0;
+            max-height: 38%;
+            background: var(--mono-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow-y: auto;
+            padding: 0.6rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.78rem;
+        }
+
+        .segment-item {
+            border-left: 3px solid var(--accent);
+            padding: 0.35rem 0.55rem;
+            margin: 0.35rem 0;
+            background: var(--panel-2);
+            border-radius: 0 4px 4px 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .segment-item .chars { color: var(--muted); font-size: 0.7rem; }
+
+        #audioBar {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+        }
+        #audioBar audio { flex: 1; height: 36px; }
+        #audioBar a { color: var(--accent); font-size: 0.8rem; white-space: nowrap; }
+
+        /* taller windows get a slightly wider control rail, narrow ones stack */
+        @media (max-width: 880px) {
+            main { grid-template-columns: 300px 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>TTS Proxy Playground</h1>
+        <span>normalization · pipe splitting · semantic segmentation · voice cloning presets</span>
+    </header>
+
+    <main>
+        <!-- LEFT: all controls -->
+        <section id="controls">
+            <div class="card">
+                <h2>Connection</h2>
+                <label for="serverUrl">Proxy URL</label>
+                <input type="text" id="serverUrl" placeholder="same origin">
+                <div class="hint">Blank = this server. Saved in browser.</div>
+                <label for="apiKey">API Key (optional)</label>
+                <input type="password" id="apiKey" placeholder="Bearer token">
+            </div>
+
+            <div class="card">
+                <h2>Request</h2>
+                <label for="model">Model</label>
+                <input type="text" id="model" list="modelList" placeholder="e.g. mlx-community/Spark-TTS-0.5B-8bit">
+                <datalist id="modelList"></datalist>
+                <label for="voice">Voice (optional)</label>
+                <input type="text" id="voice" list="voiceList" placeholder="model-specific voice">
+                <datalist id="voiceList"></datalist>
+                <label for="emotionTags">Emotion tags</label>
+                <input type="text" id="emotionTags" placeholder="[ upbeat, friendly ]">
+                <div class="hint">Prepended to every segment (incl. pipe splits). Clear to disable for this request.</div>
+                <div class="grid2">
+                    <div>
+                        <label for="speed">Speed</label>
+                        <div class="slider-row">
+                            <input type="range" id="speed" min="0.5" max="2" step="0.05" value="1">
+                            <output id="speedValue">1.0</output>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="responseFormat">Format</label>
+                        <select id="responseFormat">
+                            <option value="mp3">mp3</option>
+                            <option value="opus" selected>opus</option>
+                            <option value="wav">wav</option>
+                            <option value="flac">flac</option>
+                            <option value="aac">aac</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" id="cloningPanel" style="display: none;">
+                <h2>Voice Cloning</h2>
+                <label class="check-row" for="cloningEnabled" style="margin-top: 0;">
+                    <input type="checkbox" id="cloningEnabled">
+                    Enable voice cloning
+                </label>
+                <div id="presetRow" style="display: none;">
+                    <label for="clonePreset">Preset</label>
+                    <select id="clonePreset"></select>
+                    <div class="hint" id="presetHint"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Extra Parameters</h2>
+                <textarea id="extraParams" placeholder='{"temperature": 0.8, "top_p": 0.95}'></textarea>
+                <div class="hint">JSON merged into the request body.</div>
+            </div>
+
+            <div class="btn-row">
+                <button onclick="convertToSpeech()" id="convertBtn">▶ Generate</button>
+                <button class="secondary" onclick="previewText()" id="previewBtn">Preview</button>
+            </div>
+        </section>
+
+        <!-- RIGHT: text input + status + preview + player -->
+        <section id="work">
+            <div class="work-label">
+                <span>Text — Enter generates, Shift+Enter newlines; | forces a split; {pause 1500} = exact ms of silence</span>
+                <span id="charCount">0 characters</span>
+            </div>
+            <textarea id="textInput" placeholder="Try me: “fancy quotes”… emoji 😄, bullet • lists, ALL CAPS WORDS, a | pipe to force a split, and {pause 1500} for a 1.5 second silence."></textarea>
+            <div id="status">Ready.</div>
+            <div id="previewContainer"></div>
+            <div id="audioBar">
+                <audio id="audioPlayer" controls></audio>
+                <a id="downloadLink" href="#">Download</a>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const $ = id => document.getElementById(id);
+        const statusEl = $('status');
+
+        // ---- persistence ----
+        const savedUrl = localStorage.getItem('tts_proxy_url');
+        if (savedUrl) $('serverUrl').value = savedUrl;
+        const savedModel = localStorage.getItem('tts_proxy_model');
+        if (savedModel) $('model').value = savedModel;
+
+        $('serverUrl').addEventListener('change', () => {
+            localStorage.setItem('tts_proxy_url', $('serverUrl').value.trim());
+            loadModels();
+            loadProxyConfig();
+        });
+
+        function baseUrl() {
+            const u = $('serverUrl').value.trim().replace(/\/+$/, '');
+            return u || window.location.origin;
+        }
+
+        function headers(extra) {
+            const h = Object.assign({'Content-Type': 'application/json'}, extra || {});
+            const key = $('apiKey').value.trim();
+            if (key) h['Authorization'] = 'Bearer ' + key;
+            return h;
+        }
+
+        function setStatus(msg, isError) {
+            statusEl.textContent = msg;
+            statusEl.className = isError ? 'error' : '';
+            statusEl.title = msg;
+        }
+
+        // ---- proxy config: model default + cloning presets ----
+        let cloningServerDefault = null;
+        let serverModelDefault = null;
+
+        async function loadProxyConfig() {
+            $('cloningPanel').style.display = 'none';
+            try {
+                const r = await fetch(baseUrl() + '/v1/config', {headers: headers()});
+                if (!r.ok) return;
+                const cfg = await r.json();
+
+                serverModelDefault = cfg.model_default || null;
+                if (cfg.model_default && !$('model').value.trim()) {
+                    $('model').value = cfg.model_default;
+                    loadVoices();
+                }
+                if (cfg.emotion_tags && !$('emotionTags').value.trim()) {
+                    $('emotionTags').value = cfg.emotion_tags;
+                }
+
+                const vc = cfg.voice_cloning || {};
+                if (vc.enabled && (vc.presets || []).length > 0) {
+                    $('cloningPanel').style.display = 'block';
+                    const sel = $('clonePreset');
+                    sel.innerHTML = '<option value="">(server default)</option>' +
+                        vc.presets.map(p =>
+                            `<option value="${p.name}">${p.name}${p.has_ref_text ? '' : ' ·no ref_text'}</option>`
+                        ).join('');
+                    cloningServerDefault = vc.default;
+                    $('presetHint').textContent = cloningServerDefault
+                        ? `Server default: ${cloningServerDefault}`
+                        : 'No server default — pick one explicitly.';
+                    const wasEnabled = localStorage.getItem('tts_proxy_cloning') === '1';
+                    $('cloningEnabled').checked = wasEnabled || !!cloningServerDefault;
+                    updatePresetRow();
+                }
+            } catch (e) { /* older proxy without /v1/config — hide the panel */ }
+        }
+
+        function updatePresetRow() {
+            $('presetRow').style.display = $('cloningEnabled').checked ? 'block' : 'none';
+        }
+        $('cloningEnabled').addEventListener('change', () => {
+            localStorage.setItem('tts_proxy_cloning', $('cloningEnabled').checked ? '1' : '0');
+            updatePresetRow();
+        });
+
+        // ---- model / voice lists ----
+        async function loadModels() {
+            try {
+                const r = await fetch(baseUrl() + '/v1/models', {headers: headers()});
+                if (!r.ok) return;
+                const data = await r.json();
+                $('modelList').innerHTML = (data.data || [])
+                    .map(m => `<option value="${m.id}">`).join('');
+            } catch (e) { /* offline / unreachable — leave datalist empty */ }
+        }
+
+        async function loadVoices() {
+            const model = $('model').value.trim();
+            if (!model) return;
+            try {
+                const r = await fetch(baseUrl() + '/v1/audio/voices?model=' + encodeURIComponent(model), {headers: headers()});
+                if (!r.ok) return;
+                const data = await r.json();
+                $('voiceList').innerHTML = (data.data || [])
+                    .map(v => `<option value="${v.id}">`).join('');
+            } catch (e) { /* optional endpoint — ignore */ }
+        }
+        $('model').addEventListener('change', () => {
+            localStorage.setItem('tts_proxy_model', $('model').value.trim());
+            loadVoices();
+        });
+
+        // ---- text stats ----
+        $('textInput').addEventListener('input', () => {
+            $('charCount').textContent = $('textInput').value.length + ' characters';
+        });
+
+        // ---- controls ----
+        $('speed').addEventListener('input', () => {
+            $('speedValue').textContent = parseFloat($('speed').value).toFixed(2).replace(/0+$/, '').replace(/\.$/, '.0');
+        });
+
+        function parseExtraParamsSafe() {
+            try { return parseExtraParams(); } catch (e) { return null; }
+        }
+
+        function parseExtraParams() {
+            const raw = $('extraParams').value.trim();
+            if (!raw) return {};
+            try {
+                const obj = JSON.parse(raw);
+                if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) throw new Error();
+                return obj;
+            } catch (e) {
+                throw new Error('Extra parameters must be a JSON object.');
+            }
+        }
+
+        function buildBody() {
+            const body = Object.assign({
+                input: $('textInput').value,
+                response_format: $('responseFormat').value,
+                speed: parseFloat($('speed').value),
+            }, parseExtraParams());
+            const model = $('model').value.trim();
+            if (model && !('model' in body)) body.model = model;
+            const voice = $('voice').value.trim();
+            if (voice && !('voice' in body)) body.voice = voice;
+            // Always sent: a non-empty value overrides the server default, "" disables it
+            if (!('emotion_tags' in body)) body.emotion_tags = $('emotionTags').value.trim();
+
+            // Voice cloning control field (only when the server advertises presets)
+            if ($('cloningPanel').style.display !== 'none') {
+                if ($('cloningEnabled').checked) {
+                    const preset = $('clonePreset').value;
+                    body.voice_clone = preset || true;  // true = use server default preset
+                } else {
+                    body.voice_clone = false;  // explicit per-request opt-out
+                }
+            }
+            return body;
+        }
+
+        async function previewText() {
+            const text = $('textInput').value.trim();
+            if (!text) { setStatus('Enter some text first.', true); return; }
+            $('previewBtn').disabled = true;
+            setStatus('Previewing…');
+            try {
+                const r = await fetch(baseUrl() + '/v1/preview', {
+                    method: 'POST', headers: headers(),
+                    body: JSON.stringify({input: text, emotion_tags: $('emotionTags').value.trim()})
+                });
+                if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'HTTP ' + r.status);
+                const data = await r.json();
+
+                $('previewContainer').textContent =
+                    'NORMALIZED (' + data.original_length + ' → ' + data.normalized.length + ' chars):\n' +
+                    data.normalized + '\n\nSEGMENTS (' + data.segment_count + '):';
+                data.segments.forEach((s, i) => {
+                    const el = document.createElement('div');
+                    el.className = 'segment-item';
+                    el.innerHTML = '<span class="chars">#' + (i + 1) + ' · ' + s.length + ' chars</span><br>';
+                    el.appendChild(document.createTextNode(s));
+                    $('previewContainer').appendChild(el);
+                });
+                $('previewContainer').style.display = 'block';
+                setStatus('Preview ready — ' + data.segment_count + ' segment(s).');
+            } catch (e) {
+                setStatus('Preview failed: ' + e.message, true);
+            } finally {
+                $('previewBtn').disabled = false;
+            }
+        }
+
+        async function convertToSpeech() {
+            const text = $('textInput').value.trim();
+            if (!text) { setStatus('Enter some text first.', true); return; }
+
+            if (!$('model').value.trim() && !serverModelDefault && !(parseExtraParamsSafe() || {}).model) {
+                setStatus('No model set — pick one from the list, type one, or configure a default in the proxy.', true);
+                $('model').focus();
+                return;
+            }
+
+            let body;
+            try { body = buildBody(); }
+            catch (e) { setStatus(e.message, true); return; }
+
+            $('convertBtn').disabled = true;
+            $('audioBar').style.display = 'none';
+            const t0 = performance.now();
+            setStatus('Generating… (long texts are synthesized segment by segment, this can take a while)');
+
+            try {
+                const r = await fetch(baseUrl() + '/v1/audio/speech', {
+                    method: 'POST', headers: headers(), body: JSON.stringify(body)
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    let msg = err.error || 'HTTP ' + r.status;
+                    if (err.upstream_detail) msg += ' — ' + err.upstream_detail;
+                    else if (err.detail) msg += ' — ' +
+                        (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail));
+                    throw new Error(msg);
+                }
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const player = $('audioPlayer');
+                player.src = url;
+                const fmt = (blob.type.split('/')[1] || body.response_format).replace('mpeg', 'mp3');
+                const link = $('downloadLink');
+                link.href = url;
+                const now = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                const human = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) +
+                              '_' + pad(now.getHours()) + '-' + pad(now.getMinutes()) + '-' + pad(now.getSeconds());
+                link.download = Math.floor(now.getTime() / 1000) + '_' + human + '.' + fmt;
+                $('audioBar').style.display = 'flex';
+                player.play().catch(() => {});
+                setStatus('Done in ' + ((performance.now() - t0) / 1000).toFixed(1) + 's — ' +
+                          (blob.size / 1024).toFixed(0) + ' KB ' + fmt);
+            } catch (e) {
+                setStatus('Generation failed: ' + e.message, true);
+            } finally {
+                $('convertBtn').disabled = false;
+            }
+        }
+
+        // Enter generates, Shift+Enter newlines
+        $('textInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); convertToSpeech(); }
+        });
+
+        loadModels();
+        loadProxyConfig();
+        if ($('model').value) loadVoices();
+    </script>
+</body>
+</html>

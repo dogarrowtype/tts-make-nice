@@ -1,0 +1,59 @@
+{
+  "upstream": "http://localhost:9991",
+  "port": 9992,
+  "model": "mlx-community/Spark-TTS-0.5B-8bit",
+  // Prepended to the start of every segment sent upstream (after normalization
+  // and pipe/semantic splitting). Clients can override per-request with an
+  // "emotion_tags" field; sending "" disables it for that request.
+  "emotion_tags": "[ upbeat, friendly ]",
+  "seg_threshold": 380,
+  "pause_min_ms": 300,
+  "pause_max_ms": 500,
+
+  "features": {
+    "normalize_double_quotes": true,
+    "normalize_single_quotes": true,
+    "en_dash_to_hyphen": true,
+    "ellipsis_to_dots": true,
+    "strip_bullets": true,
+    "em_dash_padding": true,
+    "strip_emoji": true,
+    "lowercase_allcaps": true,
+    "pipe_split": true,
+    "semantic_split": true,
+    "manual_pauses": true,
+    "trim_silence": true,
+    "segment_pauses": true
+  },
+
+  // Named voice cloning presets. ref_audio must be a path readable by the
+  // UPSTREAM machine (mlx-audio loads it server-side). Any upstream parameter
+  // may be included in a preset, not just ref_audio/ref_text.
+  "voice_cloning": {
+    "enabled": true,
+    "default": "narrator",
+    "presets": {
+      "narrator": {
+        "ref_audio": "/path/on/upstream/machine/narrator.wav",
+        "ref_text": "Exact transcript of the narrator clip."
+      },
+      "radio_host": {
+        "ref_audio": "/path/on/upstream/machine/radio_host.wav",
+        "ref_text": "Exact transcript of the radio host clip.",
+        "temperature": 0.7
+      }
+    }
+  },
+
+  "api_defaults": {
+    "voice": "alloy",
+    "speed": 1.0
+  },
+
+  "api_overrides": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 50,
+    "custom_upstream_param": "any value the upstream server understands"
+  }
+}

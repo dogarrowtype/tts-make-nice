@@ -1,0 +1,5 @@
+AGENTS.md
+.DS_Store
+proxy_config.json
+__pycache__/
+testing/
